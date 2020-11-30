@@ -86,10 +86,16 @@ internal class DefaultLoginWizard(
     private suspend fun loginInternal(login: String,
                                       password: String,
                                       deviceName: String) = withContext(coroutineDispatchers.computation) {
-        val loginParams = if (Patterns.EMAIL_ADDRESS.matcher(login).matches()) {
-            PasswordLoginParams.thirdPartyIdentifier(ThreePidMedium.EMAIL, login, password, deviceName)
-        } else {
-            PasswordLoginParams.userIdentifier(login, password, deviceName)
+        val loginParams = when {
+            Patterns.EMAIL_ADDRESS.matcher(login).matches() -> {
+                PasswordLoginParams.thirdPartyIdentifier(ThreePidMedium.EMAIL, login, password, deviceName)
+            }
+            Patterns.PHONE.matcher(login).matches() -> {
+                PasswordLoginParams.phoneIdentifier("CN", login, password, deviceName)
+            }
+            else -> {
+                PasswordLoginParams.userIdentifier(login, password, deviceName)
+            }
         }
         val credentials = executeRequest<Credentials>(null) {
             apiCall = authAPI.login(loginParams)
@@ -138,6 +144,18 @@ internal class DefaultLoginWizard(
         }
     }
 
+    override fun oauthLogin(type: String, code: String, deviceName: String?, callback: MatrixCallback<Session>): Cancelable {
+        return coroutineScope.launchToCallback(coroutineDispatchers.main, callback) {
+            oauthLoginInternal(type, code, deviceName)
+        }
+    }
+
+    override fun ldapLogin(user: String, password: String, deviceName: String?, callback: MatrixCallback<Session>): Cancelable {
+        return coroutineScope.launchToCallback(coroutineDispatchers.main, callback) {
+            ldapInternal(user, password, deviceName)
+        }
+    }
+
     private suspend fun verCodeLoginInternal(type: String, address: String, verCode: String, deviceName: String?) = withContext(coroutineDispatchers.computation) {
         val input = when (type) {
             EACHCHAT_MSISDN_CODE -> VerCodeLoginParams(EACHCHAT_MSISDN_CODE, null, address, verCode, deviceName)
@@ -147,6 +165,26 @@ internal class DefaultLoginWizard(
 
         val credentials = executeRequest<Credentials>(null) {
             apiCall = authAPI.verCodeLogin(input)
+        }
+
+        sessionCreator.createSession(credentials, pendingSessionData.homeServerConnectionConfig)
+    }
+
+    private suspend fun oauthLoginInternal(type: String, code: String, deviceName: String?) = withContext(coroutineDispatchers.computation) {
+        val input = OAuthLoginParams(type, code, deviceName)
+
+        val credentials = executeRequest<Credentials>(null) {
+            apiCall = authAPI.oauthLogin(input)
+        }
+
+        sessionCreator.createSession(credentials, pendingSessionData.homeServerConnectionConfig)
+    }
+
+    private suspend fun ldapInternal(user: String, password: String, deviceName: String?) = withContext(coroutineDispatchers.computation) {
+        val input = LdapLoginParams(user, password, deviceName)
+
+        val credentials = executeRequest<Credentials>(null) {
+            apiCall = authAPI.ldapLogin(input)
         }
 
         sessionCreator.createSession(credentials, pendingSessionData.homeServerConnectionConfig)
