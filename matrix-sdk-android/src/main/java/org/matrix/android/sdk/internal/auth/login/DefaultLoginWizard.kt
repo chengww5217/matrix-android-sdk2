@@ -90,9 +90,9 @@ internal class DefaultLoginWizard(
             Patterns.EMAIL_ADDRESS.matcher(login).matches() -> {
                 PasswordLoginParams.thirdPartyIdentifier(ThreePidMedium.EMAIL, login, password, deviceName)
             }
-            Patterns.PHONE.matcher(login).matches() -> {
-                PasswordLoginParams.phoneIdentifier("CN", login, password, deviceName)
-            }
+//            Patterns.PHONE.matcher(login).matches() -> {
+//                PasswordLoginParams.phoneIdentifier("CN", login, password, deviceName)
+//            }
             else -> {
                 PasswordLoginParams.userIdentifier(login, password, deviceName)
             }

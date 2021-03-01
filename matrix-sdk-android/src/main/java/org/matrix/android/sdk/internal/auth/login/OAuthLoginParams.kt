@@ -17,7 +17,7 @@ import org.matrix.android.sdk.internal.auth.data.LoginParams
 @JsonClass(generateAdapter = true)
 data class OAuthLoginParams(
         @Json(name = "type") override val type: String,
-        @Json(name = "code") val code: String,
+        @Json(name = "auth_code") val code: String,
         @Json(name = "initial_device_display_name") val deviceDisplayName: String?
 ) : LoginParams
 
