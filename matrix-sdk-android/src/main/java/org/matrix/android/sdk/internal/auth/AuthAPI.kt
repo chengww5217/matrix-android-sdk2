@@ -21,6 +21,8 @@ import org.matrix.android.sdk.internal.auth.data.LoginFlowResponse
 import org.matrix.android.sdk.internal.auth.data.PasswordLoginParams
 import org.matrix.android.sdk.internal.auth.data.RiotConfig
 import org.matrix.android.sdk.internal.auth.data.TokenLoginParams
+import org.matrix.android.sdk.internal.auth.login.LdapLoginParams
+import org.matrix.android.sdk.internal.auth.login.OAuthLoginParams
 import org.matrix.android.sdk.internal.auth.login.ResetPasswordMailConfirmed
 import org.matrix.android.sdk.internal.auth.login.VerCodeLoginParams
 import org.matrix.android.sdk.internal.auth.registration.AddThreePidRegistrationParams
@@ -123,4 +125,19 @@ internal interface AuthAPI {
      */
     @POST(NetworkConstants.URI_API_PREFIX_PATH_R0 + "login")
     fun verCodeLogin(@Body input: VerCodeLoginParams): Call<Credentials>
+
+    /**
+     * Add oauth login for each chat use
+     * @see [OAuthLoginParams]
+     */
+    @POST(NetworkConstants.URI_API_PREFIX_PATH_R0 + "login")
+    fun oauthLogin(@Body input: OAuthLoginParams): Call<Credentials>
+
+    /**
+     * Add ldap login for each chat use
+     * @see [LdapLoginParams]
+     */
+    @POST(NetworkConstants.URI_API_PREFIX_PATH_R0 + "login")
+    fun ldapLogin(@Body input: LdapLoginParams): Call<Credentials>
+
 }

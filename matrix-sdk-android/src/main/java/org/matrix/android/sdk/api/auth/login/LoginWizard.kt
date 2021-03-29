@@ -52,11 +52,37 @@ interface LoginWizard {
      */
     fun resetPasswordMailConfirmed(callback: MatrixCallback<Unit>): Cancelable
 
+    /**
+     * To support verification code login of each chat
+     *
+     * @see [org.matrix.android.sdk.internal.auth.login.VerCodeLoginParams]
+     * @param type one of the
+     * [org.matrix.android.sdk.internal.auth.login.EACHCHAT_MSISDN_CODE] or
+     * [org.matrix.android.sdk.internal.auth.login.EACHCHAT_EMAIL_CODE]
+     *
+     * @param address email or phone number
+     * @param verCode the verification code
+     * @param deviceName device name of the [Session]
+     * @param callback call after the request called
+     * @return a cancelable task. Call Cancelable.cancel() when your screen is onDestroy
+     */
     fun verCodeLogin(
             type: String,
             address: String,
             verCode: String,
             deviceName: String?,
             callback: MatrixCallback<Session>
+    ): Cancelable
+
+    fun oauthLogin(type: String,
+                   code: String,
+                   deviceName: String?,
+                   callback: MatrixCallback<Session>
+    ): Cancelable
+
+    fun ldapLogin(user: String,
+                  password: String,
+                  deviceName: String?,
+                  callback: MatrixCallback<Session>
     ): Cancelable
 }
