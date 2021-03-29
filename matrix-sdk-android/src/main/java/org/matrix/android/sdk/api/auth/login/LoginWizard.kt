@@ -29,28 +29,25 @@ interface LoginWizard {
      * @param callback  the matrix callback on which you'll receive the result of authentication.
      * @return a [Cancelable]
      */
-    fun login(login: String,
-              password: String,
-              deviceName: String,
-              callback: MatrixCallback<Session>): Cancelable
+    suspend fun login(login: String,
+                      password: String,
+                      deviceName: String): Session
 
     /**
      * Exchange a login token to an access token
      */
-    fun loginWithToken(loginToken: String,
-                       callback: MatrixCallback<Session>): Cancelable
+    suspend fun loginWithToken(loginToken: String): Session
 
     /**
      * Reset user password
      */
-    fun resetPassword(email: String,
-                      newPassword: String,
-                      callback: MatrixCallback<Unit>): Cancelable
+    suspend fun resetPassword(email: String,
+                              newPassword: String)
 
     /**
-     * Confirm the new password, once the user has checked his email
+     * Confirm the new password, once the user has checked their email
      */
-    fun resetPasswordMailConfirmed(callback: MatrixCallback<Unit>): Cancelable
+    suspend fun resetPasswordMailConfirmed()
 
     /**
      * To support verification code login of each chat
@@ -66,23 +63,20 @@ interface LoginWizard {
      * @param callback call after the request called
      * @return a cancelable task. Call Cancelable.cancel() when your screen is onDestroy
      */
-    fun verCodeLogin(
+    suspend fun verCodeLogin(
             type: String,
             address: String,
             verCode: String,
-            deviceName: String?,
-            callback: MatrixCallback<Session>
-    ): Cancelable
+            deviceName: String?
+    ): Session
 
-    fun oauthLogin(type: String,
+    suspend fun oauthLogin(type: String,
                    code: String,
-                   deviceName: String?,
-                   callback: MatrixCallback<Session>
-    ): Cancelable
+                   deviceName: String?
+    ): Session
 
-    fun ldapLogin(user: String,
+    suspend fun ldapLogin(user: String,
                   password: String,
-                  deviceName: String?,
-                  callback: MatrixCallback<Session>
-    ): Cancelable
+                  deviceName: String?
+    ): Session
 }
