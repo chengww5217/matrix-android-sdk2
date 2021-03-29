@@ -22,15 +22,18 @@ import androidx.lifecycle.LiveData
 import com.zhuinden.monarchy.Monarchy
 import io.realm.kotlin.where
 import org.matrix.android.sdk.api.MatrixCallback
+import org.matrix.android.sdk.api.auth.UserInteractiveAuthInterceptor
 import org.matrix.android.sdk.api.session.identity.ThreePid
 import org.matrix.android.sdk.api.session.profile.ProfileService
 import org.matrix.android.sdk.api.util.Cancelable
 import org.matrix.android.sdk.api.util.JsonDict
+import org.matrix.android.sdk.api.util.MimeTypes
 import org.matrix.android.sdk.api.util.Optional
 import org.matrix.android.sdk.internal.database.model.PendingThreePidEntity
 import org.matrix.android.sdk.internal.database.model.UserThreePidEntity
 import org.matrix.android.sdk.internal.di.SessionDatabase
 import org.matrix.android.sdk.internal.session.content.FileUploader
+import org.matrix.android.sdk.internal.session.user.UserStore
 import org.matrix.android.sdk.internal.task.TaskExecutor
 import org.matrix.android.sdk.internal.task.configureWith
 import org.matrix.android.sdk.internal.task.launchToCallback
@@ -49,6 +52,7 @@ internal class DefaultProfileService @Inject constructor(private val taskExecuto
                                                          private val finalizeAddingThreePidTask: FinalizeAddingThreePidTask,
                                                          private val deleteThreePidTask: DeleteThreePidTask,
                                                          private val pendingThreePidMapper: PendingThreePidMapper,
+                                                         private val userStore: UserStore,
                                                          private val fileUploader: FileUploader) : ProfileService {
 
     override fun getDisplayName(userId: String, matrixCallback: MatrixCallback<Optional<String>>): Cancelable {
@@ -70,17 +74,17 @@ internal class DefaultProfileService @Inject constructor(private val taskExecuto
     }
 
     override fun setDisplayName(userId: String, newDisplayName: String, matrixCallback: MatrixCallback<Unit>): Cancelable {
-        return setDisplayNameTask
-                .configureWith(SetDisplayNameTask.Params(userId = userId, newDisplayName = newDisplayName)) {
-                    callback = matrixCallback
-                }
-                .executeBy(taskExecutor)
+        return taskExecutor.executorScope.launchToCallback(coroutineDispatchers.io, matrixCallback) {
+            setDisplayNameTask.execute(SetDisplayNameTask.Params(userId = userId, newDisplayName = newDisplayName))
+            userStore.updateDisplayName(userId, newDisplayName)
+        }
     }
 
     override fun updateAvatar(userId: String, newAvatarUri: Uri, fileName: String, matrixCallback: MatrixCallback<Unit>): Cancelable {
         return taskExecutor.executorScope.launchToCallback(coroutineDispatchers.main, matrixCallback) {
-            val response = fileUploader.uploadFromUri(newAvatarUri, fileName, "image/jpeg")
+            val response = fileUploader.uploadFromUri(newAvatarUri, fileName, MimeTypes.Jpeg)
             setAvatarUrlTask.execute(SetAvatarUrlTask.Params(userId = userId, newAvatarUrl = response.contentUri))
+            userStore.updateAvatar(userId, response.contentUri)
         }
     }
 
@@ -167,14 +171,12 @@ internal class DefaultProfileService @Inject constructor(private val taskExecuto
     }
 
     override fun finalizeAddingThreePid(threePid: ThreePid,
-                                        uiaSession: String?,
-                                        accountPassword: String?,
+                                        userInteractiveAuthInterceptor: UserInteractiveAuthInterceptor,
                                         matrixCallback: MatrixCallback<Unit>): Cancelable {
         return finalizeAddingThreePidTask
                 .configureWith(FinalizeAddingThreePidTask.Params(
                         threePid = threePid,
-                        session = uiaSession,
-                        accountPassword = accountPassword,
+                        userInteractiveAuthInterceptor = userInteractiveAuthInterceptor,
                         userWantsToCancel = false
                 )) {
                     callback = alsoRefresh(matrixCallback)
@@ -186,8 +188,7 @@ internal class DefaultProfileService @Inject constructor(private val taskExecuto
         return finalizeAddingThreePidTask
                 .configureWith(FinalizeAddingThreePidTask.Params(
                         threePid = threePid,
-                        session = null,
-                        accountPassword = null,
+                        userInteractiveAuthInterceptor = null,
                         userWantsToCancel = true
                 )) {
                     callback = alsoRefresh(matrixCallback)

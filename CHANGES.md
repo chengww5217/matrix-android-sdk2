@@ -1,5 +1,41 @@
 Please also refer to the Changelog of Element Android: https://github.com/vector-im/element-android/blob/master/CHANGES.md
 
+Changes in Matrix-SDK 1.0.16 (2021-02-08)
+===================================================
+
+Imported from Element 1.0.16. (https://github.com/vector-im/element-android/releases/tag/v1.0.16)
+
+Changes in Matrix-SDK 1.0.13 (2020-12-21)
+===================================================
+
+Imported from Element 1.0.13. (https://github.com/vector-im/element-android/releases/tag/v1.0.13)
+
+Changes in Matrix-SDK 1.0.12 (2020-12-15)
+===================================================
+
+Imported from Element 1.0.12. (https://github.com/vector-im/element-android/releases/tag/v1.0.12)
+
+SDK API changes ⚠️:
+ - StateService now exposes suspendable function instead of using MatrixCallback.
+ - RawCacheStrategy has been moved and renamed to CacheStrategy
+ - FileService: remove useless FileService.DownloadMode
+
+Other important changes:
+ - Upgrade Realm dependency to 10.1.2
+ - Log HTTP requests and responses in production (level BASIC, i.e. without any private data)
+
+Changes in Matrix-SDK 1.0.11 (2020-11-30)
+===================================================
+
+Imported from Element 1.0.11. (https://github.com/vector-im/element-android/releases/tag/v1.0.11)
+
+SDK API changes ⚠️:
+ - AccountService and some other services now expose suspendable function instead of using MatrixCallback (vector-im/element-android##2354).
+   Note: We will incrementally migrate all the SDK API in a near future (vector-im/element-android#2449)
+
+Other important changes:
+ - Upgrade Realm dependency to 10.0.0
+
 Changes in Matrix-SDK 1.0.10 (2020-11-04)
 ===================================================
 

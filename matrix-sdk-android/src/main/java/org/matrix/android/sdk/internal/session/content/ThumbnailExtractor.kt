@@ -20,6 +20,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import org.matrix.android.sdk.api.session.content.ContentAttachmentData
+import org.matrix.android.sdk.api.util.MimeTypes
 import timber.log.Timber
 import java.io.ByteArrayOutputStream
 
@@ -46,22 +47,24 @@ internal object ThumbnailExtractor {
         val mediaMetadataRetriever = MediaMetadataRetriever()
         try {
             mediaMetadataRetriever.setDataSource(context, attachment.queryUri)
-            val thumbnail = mediaMetadataRetriever.frameAtTime
-
-            val outputStream = ByteArrayOutputStream()
-            thumbnail.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
-            val thumbnailWidth = thumbnail.width
-            val thumbnailHeight = thumbnail.height
-            val thumbnailSize = outputStream.size()
-            thumbnailData = ThumbnailData(
-                    width = thumbnailWidth,
-                    height = thumbnailHeight,
-                    size = thumbnailSize.toLong(),
-                    bytes = outputStream.toByteArray(),
-                    mimeType = "image/jpeg"
-            )
-            thumbnail.recycle()
-            outputStream.reset()
+            mediaMetadataRetriever.frameAtTime?.let { thumbnail ->
+                val outputStream = ByteArrayOutputStream()
+                thumbnail.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
+                val thumbnailWidth = thumbnail.width
+                val thumbnailHeight = thumbnail.height
+                val thumbnailSize = outputStream.size()
+                thumbnailData = ThumbnailData(
+                        width = thumbnailWidth,
+                        height = thumbnailHeight,
+                        size = thumbnailSize.toLong(),
+                        bytes = outputStream.toByteArray(),
+                        mimeType = MimeTypes.Jpeg
+                )
+                thumbnail.recycle()
+                outputStream.reset()
+            } ?: run {
+                Timber.e("Cannot extract video thumbnail at %s", attachment.queryUri.toString())
+            }
         } catch (e: Exception) {
             Timber.e(e, "Cannot extract video thumbnail")
         } finally {

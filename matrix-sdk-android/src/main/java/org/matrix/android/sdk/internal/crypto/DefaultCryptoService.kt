@@ -30,6 +30,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.matrix.android.sdk.api.MatrixCallback
 import org.matrix.android.sdk.api.NoOpMatrixCallback
+import org.matrix.android.sdk.api.auth.UserInteractiveAuthInterceptor
 import org.matrix.android.sdk.api.crypto.MXCryptoConfig
 import org.matrix.android.sdk.api.extensions.tryOrNull
 import org.matrix.android.sdk.api.failure.Failure
@@ -207,9 +208,9 @@ internal class DefaultCryptoService @Inject constructor(
                 .executeBy(taskExecutor)
     }
 
-    override fun deleteDevice(deviceId: String, callback: MatrixCallback<Unit>) {
+    override fun deleteDevice(deviceId: String, userInteractiveAuthInterceptor: UserInteractiveAuthInterceptor, callback: MatrixCallback<Unit>) {
         deleteDeviceTask
-                .configureWith(DeleteDeviceTask.Params(deviceId)) {
+                .configureWith(DeleteDeviceTask.Params(deviceId, userInteractiveAuthInterceptor, null)) {
                     this.executionThread = TaskThread.CRYPTO
                     this.callback = callback
                 }
@@ -767,9 +768,9 @@ internal class DefaultCryptoService @Inject constructor(
      */
     private fun onRoomKeyEvent(event: Event) {
         val roomKeyContent = event.getClearContent().toModel<RoomKeyContent>() ?: return
-        Timber.v("## CRYPTO | GOSSIP onRoomKeyEvent() : type<${event.getClearType()}> , sessionId<${roomKeyContent.sessionId}>")
+        Timber.i("## CRYPTO | onRoomKeyEvent() from: ${event.senderId} type<${event.getClearType()}> , sessionId<${roomKeyContent.sessionId}>")
         if (roomKeyContent.roomId.isNullOrEmpty() || roomKeyContent.algorithm.isNullOrEmpty()) {
-            Timber.e("## CRYPTO | GOSSIP onRoomKeyEvent() : missing fields")
+            Timber.e("## CRYPTO | onRoomKeyEvent() : missing fields")
             return
         }
         val alg = roomDecryptorProvider.getOrCreateRoomDecryptor(roomKeyContent.roomId, roomKeyContent.algorithm)
@@ -782,20 +783,20 @@ internal class DefaultCryptoService @Inject constructor(
 
     private fun onKeyWithHeldReceived(event: Event) {
         val withHeldContent = event.getClearContent().toModel<RoomKeyWithHeldContent>() ?: return Unit.also {
-            Timber.e("## CRYPTO | Malformed onKeyWithHeldReceived() : missing fields")
+            Timber.i("## CRYPTO | Malformed onKeyWithHeldReceived() : missing fields")
         }
-        Timber.d("## CRYPTO | onKeyWithHeldReceived() received : content <$withHeldContent>")
+        Timber.i("## CRYPTO | onKeyWithHeldReceived() received from:${event.senderId}, content <$withHeldContent>")
         val alg = roomDecryptorProvider.getOrCreateRoomDecryptor(withHeldContent.roomId, withHeldContent.algorithm)
         if (alg is IMXWithHeldExtension) {
             alg.onRoomKeyWithHeldEvent(withHeldContent)
         } else {
-            Timber.e("## CRYPTO | onKeyWithHeldReceived() : Unable to handle WithHeldContent for ${withHeldContent.algorithm}")
+            Timber.e("## CRYPTO | onKeyWithHeldReceived() from:${event.senderId}: Unable to handle WithHeldContent for ${withHeldContent.algorithm}")
             return
         }
     }
 
     private fun onSecretSendReceived(event: Event) {
-        Timber.i("## CRYPTO | GOSSIP onSecretSend() : onSecretSendReceived ${event.content?.get("sender_key")}")
+        Timber.i("## CRYPTO | GOSSIP onSecretSend() from ${event.senderId} : onSecretSendReceived ${event.content?.get("sender_key")}")
         if (!event.isEncrypted()) {
             // secret send messages must be encrypted
             Timber.e("## CRYPTO | GOSSIP onSecretSend() :Received unencrypted secret send event")

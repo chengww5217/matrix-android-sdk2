@@ -20,6 +20,9 @@ import io.realm.DynamicRealm
 import io.realm.RealmMigration
 import org.matrix.android.sdk.internal.database.model.HomeServerCapabilitiesEntityFields
 import org.matrix.android.sdk.internal.database.model.PendingThreePidEntityFields
+import org.matrix.android.sdk.internal.database.model.PreviewUrlCacheEntityFields
+import org.matrix.android.sdk.internal.database.model.RoomEntityFields
+import org.matrix.android.sdk.internal.database.model.RoomMembersLoadStatusType
 import org.matrix.android.sdk.internal.database.model.RoomSummaryEntityFields
 import timber.log.Timber
 import javax.inject.Inject
@@ -27,7 +30,7 @@ import javax.inject.Inject
 class RealmSessionStoreMigration @Inject constructor() : RealmMigration {
 
     companion object {
-        const val SESSION_STORE_SCHEMA_VERSION = 5L
+        const val SESSION_STORE_SCHEMA_VERSION = 7L
     }
 
     override fun migrate(realm: DynamicRealm, oldVersion: Long, newVersion: Long) {
@@ -38,6 +41,8 @@ class RealmSessionStoreMigration @Inject constructor() : RealmMigration {
         if (oldVersion <= 2) migrateTo3(realm)
         if (oldVersion <= 3) migrateTo4(realm)
         if (oldVersion <= 4) migrateTo5(realm)
+        if (oldVersion <= 5) migrateTo6(realm)
+        if (oldVersion <= 6) migrateTo7(realm)
     }
 
     private fun migrateTo1(realm: DynamicRealm) {
@@ -88,5 +93,33 @@ class RealmSessionStoreMigration @Inject constructor() : RealmMigration {
         realm.schema.get("HomeServerCapabilitiesEntity")
                 ?.removeField("adminE2EByDefault")
                 ?.removeField("preferredJitsiDomain")
+    }
+
+    private fun migrateTo6(realm: DynamicRealm) {
+        Timber.d("Step 5 -> 6")
+        realm.schema.create("PreviewUrlCacheEntity")
+                .addField(PreviewUrlCacheEntityFields.URL, String::class.java)
+                .setRequired(PreviewUrlCacheEntityFields.URL, true)
+                .addPrimaryKey(PreviewUrlCacheEntityFields.URL)
+                .addField(PreviewUrlCacheEntityFields.URL_FROM_SERVER, String::class.java)
+                .addField(PreviewUrlCacheEntityFields.SITE_NAME, String::class.java)
+                .addField(PreviewUrlCacheEntityFields.TITLE, String::class.java)
+                .addField(PreviewUrlCacheEntityFields.DESCRIPTION, String::class.java)
+                .addField(PreviewUrlCacheEntityFields.MXC_URL, String::class.java)
+                .addField(PreviewUrlCacheEntityFields.LAST_UPDATED_TIMESTAMP, Long::class.java)
+    }
+
+    private fun migrateTo7(realm: DynamicRealm) {
+        Timber.d("Step 6 -> 7")
+        realm.schema.get("RoomEntity")
+                ?.addField(RoomEntityFields.MEMBERS_LOAD_STATUS_STR, String::class.java)
+                ?.transform { obj ->
+                    if (obj.getBoolean("areAllMembersLoaded")) {
+                        obj.setString("membersLoadStatusStr", RoomMembersLoadStatusType.LOADED.name)
+                    } else {
+                        obj.setString("membersLoadStatusStr", RoomMembersLoadStatusType.NONE.name)
+                    }
+                }
+                ?.removeField("areAllMembersLoaded")
     }
 }

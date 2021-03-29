@@ -27,7 +27,6 @@ import org.matrix.android.sdk.internal.crypto.SendGossipWorker
 import org.matrix.android.sdk.internal.crypto.crosssigning.UpdateTrustWorker
 import org.matrix.android.sdk.internal.crypto.verification.SendVerificationMessageWorker
 import org.matrix.android.sdk.internal.di.MatrixComponent
-import org.matrix.android.sdk.internal.di.SessionAssistedInjectModule
 import org.matrix.android.sdk.internal.network.NetworkConnectivityChecker
 import org.matrix.android.sdk.internal.session.account.AccountModule
 import org.matrix.android.sdk.internal.session.cache.CacheModule
@@ -40,6 +39,7 @@ import org.matrix.android.sdk.internal.session.group.GroupModule
 import org.matrix.android.sdk.internal.session.homeserver.HomeServerCapabilitiesModule
 import org.matrix.android.sdk.internal.session.identity.IdentityModule
 import org.matrix.android.sdk.internal.session.integrationmanager.IntegrationManagerModule
+import org.matrix.android.sdk.internal.session.media.MediaModule
 import org.matrix.android.sdk.internal.session.openid.OpenIdModule
 import org.matrix.android.sdk.internal.session.profile.ProfileModule
 import org.matrix.android.sdk.internal.session.pushers.AddHttpPusherWorker
@@ -75,6 +75,7 @@ import org.matrix.android.sdk.internal.util.MatrixCoroutineDispatchers
             GroupModule::class,
             ContentModule::class,
             CacheModule::class,
+            MediaModule::class,
             CryptoModule::class,
             PushersModule::class,
             OpenIdModule::class,
@@ -84,7 +85,6 @@ import org.matrix.android.sdk.internal.util.MatrixCoroutineDispatchers
             TermsModule::class,
             AccountDataModule::class,
             ProfileModule::class,
-            SessionAssistedInjectModule::class,
             AccountModule::class,
             CallModule::class,
             SearchModule::class

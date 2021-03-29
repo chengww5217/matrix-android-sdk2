@@ -23,6 +23,7 @@ import org.matrix.android.sdk.api.session.events.model.EventType
 import org.matrix.android.sdk.api.session.identity.IdentityServiceError
 import org.matrix.android.sdk.api.session.identity.toMedium
 import org.matrix.android.sdk.api.session.room.model.create.CreateRoomParams
+import org.matrix.android.sdk.api.util.MimeTypes
 import org.matrix.android.sdk.internal.crypto.DeviceListManager
 import org.matrix.android.sdk.internal.crypto.MXCRYPTO_ALGORITHM_MEGOLM
 import org.matrix.android.sdk.internal.di.AuthenticatedIdentity
@@ -81,7 +82,7 @@ internal class CreateRoomBodyBuilder @Inject constructor(
                 topic = params.topic,
                 invitedUserIds = params.invitedUserIds,
                 invite3pids = invite3pids,
-                creationContent = params.creationContent,
+                creationContent = params.creationContent.takeIf { it.isNotEmpty() },
                 initialStates = initialStates,
                 preset = params.preset,
                 isDirect = params.isDirect,
@@ -96,7 +97,7 @@ internal class CreateRoomBodyBuilder @Inject constructor(
                 fileUploader.uploadFromUri(
                         uri = avatarUri,
                         filename = UUID.randomUUID().toString(),
-                        mimeType = "image/jpeg")
+                        mimeType = MimeTypes.Jpeg)
             }
                     ?.let { response ->
                         Event(
@@ -142,9 +143,11 @@ internal class CreateRoomBodyBuilder @Inject constructor(
     }
 
     private suspend fun canEnableEncryption(params: CreateRoomParams): Boolean {
-        return (params.enableEncryptionIfInvitedUsersSupportIt
-                && crossSigningService.isCrossSigningVerified()
-                && params.invite3pids.isEmpty())
+        return params.enableEncryptionIfInvitedUsersSupportIt
+                // Parity with web, enable if users have encryption ready devices
+                // for now remove checks on cross signing and 3pid invites
+                // && crossSigningService.isCrossSigningVerified()
+                && params.invite3pids.isEmpty()
                 && params.invitedUserIds.isNotEmpty()
                 && params.invitedUserIds.let { userIds ->
             val keys = deviceListManager.downloadKeys(userIds, forceDownload = false)

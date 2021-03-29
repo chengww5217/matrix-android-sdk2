@@ -19,9 +19,9 @@ package org.matrix.android.sdk.internal.session.room.create
 import com.zhuinden.monarchy.Monarchy
 import io.realm.RealmConfiguration
 import kotlinx.coroutines.TimeoutCancellationException
-import org.greenrobot.eventbus.EventBus
 import org.matrix.android.sdk.api.failure.Failure
 import org.matrix.android.sdk.api.failure.MatrixError
+import org.matrix.android.sdk.api.session.room.alias.RoomAliasError
 import org.matrix.android.sdk.api.session.room.failure.CreateRoomFailure
 import org.matrix.android.sdk.api.session.room.model.create.CreateRoomParams
 import org.matrix.android.sdk.api.session.room.model.create.CreateRoomPreset
@@ -31,8 +31,10 @@ import org.matrix.android.sdk.internal.database.model.RoomEntityFields
 import org.matrix.android.sdk.internal.database.model.RoomSummaryEntity
 import org.matrix.android.sdk.internal.database.query.where
 import org.matrix.android.sdk.internal.di.SessionDatabase
+import org.matrix.android.sdk.internal.network.GlobalErrorReceiver
 import org.matrix.android.sdk.internal.network.executeRequest
 import org.matrix.android.sdk.internal.session.room.RoomAPI
+import org.matrix.android.sdk.internal.session.room.alias.RoomAliasAvailabilityChecker
 import org.matrix.android.sdk.internal.session.room.read.SetReadMarkersTask
 import org.matrix.android.sdk.internal.session.user.accountdata.DirectChatsHelper
 import org.matrix.android.sdk.internal.session.user.accountdata.UpdateUserAccountDataTask
@@ -46,13 +48,14 @@ internal interface CreateRoomTask : Task<CreateRoomParams, String>
 internal class DefaultCreateRoomTask @Inject constructor(
         private val roomAPI: RoomAPI,
         @SessionDatabase private val monarchy: Monarchy,
+        private val aliasAvailabilityChecker: RoomAliasAvailabilityChecker,
         private val directChatsHelper: DirectChatsHelper,
         private val updateUserAccountDataTask: UpdateUserAccountDataTask,
         private val readMarkersTask: SetReadMarkersTask,
         @SessionDatabase
         private val realmConfiguration: RealmConfiguration,
         private val createRoomBodyBuilder: CreateRoomBodyBuilder,
-        private val eventBus: EventBus
+        private val globalErrorReceiver: GlobalErrorReceiver
 ) : CreateRoomTask {
 
     override suspend fun execute(params: CreateRoomParams): String {
@@ -61,21 +64,33 @@ internal class DefaultCreateRoomTask @Inject constructor(
                     ?: throw IllegalStateException("You can't create a direct room without an invitedUser")
         } else null
 
+        if (params.preset == CreateRoomPreset.PRESET_PUBLIC_CHAT) {
+            try {
+                aliasAvailabilityChecker.check(params.roomAliasName)
+            } catch (aliasError: RoomAliasError) {
+                throw CreateRoomFailure.AliasError(aliasError)
+            }
+        }
+
         val createRoomBody = createRoomBodyBuilder.build(params)
 
         val createRoomResponse = try {
-            executeRequest<CreateRoomResponse>(eventBus) {
+            executeRequest<CreateRoomResponse>(globalErrorReceiver) {
                 apiCall = roomAPI.createRoom(createRoomBody)
             }
         } catch (throwable: Throwable) {
-            if (throwable is Failure.ServerError
-                    && throwable.httpCode == 403
-                    && throwable.error.code == MatrixError.M_FORBIDDEN
-                    && throwable.error.message.startsWith("Federation denied with")) {
-                throw CreateRoomFailure.CreatedWithFederationFailure(throwable.error)
-            } else {
-                throw throwable
+            if (throwable is Failure.ServerError) {
+                if (throwable.httpCode == 403
+                        && throwable.error.code == MatrixError.M_FORBIDDEN
+                        && throwable.error.message.startsWith("Federation denied with")) {
+                    throw CreateRoomFailure.CreatedWithFederationFailure(throwable.error)
+                } else if (throwable.httpCode == 400
+                        && throwable.error.code == MatrixError.M_UNKNOWN
+                        && throwable.error.message == "Invalid characters in room alias") {
+                    throw CreateRoomFailure.AliasError(RoomAliasError.AliasInvalid)
+                }
             }
+            throw throwable
         }
         val roomId = createRoomResponse.roomId
         // Wait for room to come back from the sync (but it can maybe be in the DB if the sync response is received before)

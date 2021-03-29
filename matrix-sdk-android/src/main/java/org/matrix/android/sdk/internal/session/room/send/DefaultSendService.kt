@@ -21,8 +21,9 @@ import androidx.work.BackoffPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequest
 import androidx.work.Operation
-import com.squareup.inject.assisted.Assisted
-import com.squareup.inject.assisted.AssistedInject
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
+import dagger.assisted.AssistedFactory
 import kotlinx.coroutines.launch
 import org.matrix.android.sdk.api.session.content.ContentAttachmentData
 import org.matrix.android.sdk.api.session.events.model.Event
@@ -71,9 +72,9 @@ internal class DefaultSendService @AssistedInject constructor(
         private val cancelSendTracker: CancelSendTracker
 ) : SendService {
 
-    @AssistedInject.Factory
+    @AssistedFactory
     interface Factory {
-        fun create(roomId: String): SendService
+        fun create(roomId: String): DefaultSendService
     }
 
     private val workerFutureListenerExecutor = Executors.newSingleThreadExecutor()
@@ -177,7 +178,7 @@ internal class DefaultSendService @AssistedInject constructor(
                     val attachmentData = ContentAttachmentData(
                             size = messageContent.info!!.size,
                             mimeType = messageContent.info.mimeType!!,
-                            name = messageContent.body,
+                            name = messageContent.getFileName(),
                             queryUri = Uri.parse(messageContent.url),
                             type = ContentAttachmentData.Type.FILE
                     )
@@ -210,6 +211,8 @@ internal class DefaultSendService @AssistedInject constructor(
 
     override fun cancelSend(eventId: String) {
         cancelSendTracker.markLocalEchoForCancel(eventId, roomId)
+        // This is maybe the current task, so cancel it too
+        eventSenderProcessor.cancel(eventId, roomId)
         taskExecutor.executorScope.launch {
             localEchoRepository.deleteFailedEcho(roomId, eventId)
         }

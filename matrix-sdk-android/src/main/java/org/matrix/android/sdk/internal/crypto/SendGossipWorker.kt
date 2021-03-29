@@ -19,7 +19,6 @@ package org.matrix.android.sdk.internal.crypto
 import android.content.Context
 import androidx.work.WorkerParameters
 import com.squareup.moshi.JsonClass
-import org.greenrobot.eventbus.EventBus
 import org.matrix.android.sdk.api.auth.data.Credentials
 import org.matrix.android.sdk.api.failure.shouldBeRetried
 import org.matrix.android.sdk.api.session.events.model.Event
@@ -54,7 +53,6 @@ internal class SendGossipWorker(context: Context,
 
     @Inject lateinit var sendToDeviceTask: SendToDeviceTask
     @Inject lateinit var cryptoStore: IMXCryptoStore
-    @Inject lateinit var eventBus: EventBus
     @Inject lateinit var credentials: Credentials
     @Inject lateinit var messageEncrypter: MessageEncrypter
     @Inject lateinit var ensureOlmSessionsForDevicesAction: EnsureOlmSessionsForDevicesAction
@@ -100,7 +98,7 @@ internal class SendGossipWorker(context: Context,
                         requestId = params.requestId,
                         state = GossipingRequestState.FAILED_TO_ACCEPTED
                 )
-                Timber.e("no session with this device, probably because there were no one-time keys.")
+                Timber.e("no session with this device $requestingDeviceId, probably because there were no one-time keys.")
             }
         }
 

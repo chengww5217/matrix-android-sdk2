@@ -32,6 +32,7 @@ import org.matrix.android.sdk.internal.crypto.crosssigning.toBase64NoPadding
 import org.matrix.android.sdk.internal.crypto.keysbackup.util.extractCurveKeyFromRecoveryKey
 import org.matrix.android.sdk.internal.crypto.model.rest.GossipingDefaultContent
 import org.matrix.android.sdk.internal.crypto.model.rest.GossipingToDeviceObject
+import org.matrix.android.sdk.internal.crypto.model.rest.RoomKeyRequestBody
 import org.matrix.android.sdk.internal.crypto.store.IMXCryptoStore
 import org.matrix.android.sdk.internal.di.SessionId
 import org.matrix.android.sdk.internal.session.SessionScope
@@ -54,6 +55,7 @@ internal class IncomingGossipingRequestManager @Inject constructor(
         private val cryptoCoroutineScope: CoroutineScope) {
 
     private val executor = Executors.newSingleThreadExecutor()
+
     // list of IncomingRoomKeyRequests/IncomingRoomKeyRequestCancellations
     // we received in the current sync.
     private val receivedGossipingRequests = ArrayList<IncomingShareRequestCommon>()
@@ -103,11 +105,11 @@ internal class IncomingGossipingRequestManager @Inject constructor(
      * @param event the announcement event.
      */
     fun onGossipingRequestEvent(event: Event) {
-        Timber.v("## CRYPTO | GOSSIP onGossipingRequestEvent type ${event.type} from user ${event.senderId}")
         val roomKeyShare = event.getClearContent().toModel<GossipingDefaultContent>()
+        Timber.i("## CRYPTO | GOSSIP onGossipingRequestEvent received type ${event.type} from user:${event.senderId}, content:$roomKeyShare")
         // val ageLocalTs = event.unsignedData?.age?.let { System.currentTimeMillis() - it }
         when (roomKeyShare?.action) {
-            GossipingToDeviceObject.ACTION_SHARE_REQUEST      -> {
+            GossipingToDeviceObject.ACTION_SHARE_REQUEST -> {
                 if (event.getClearType() == EventType.REQUEST_SECRET) {
                     IncomingSecretShareRequest.fromEvent(event)?.let {
                         if (event.senderId == credentials.userId && it.deviceId == credentials.deviceId) {
@@ -205,34 +207,7 @@ internal class IncomingGossipingRequestManager @Inject constructor(
 
         Timber.v("## CRYPTO | GOSSIP processIncomingRoomKeyRequest from $userId:$deviceId for $roomId / ${body.sessionId} id ${request.requestId}")
         if (credentials.userId != userId) {
-            Timber.w("## CRYPTO | GOSSIP processReceivedGossipingRequests() : room key request from other user")
-            val senderKey = body.senderKey ?: return Unit
-                    .also { Timber.w("missing senderKey") }
-                    .also { cryptoStore.updateGossipingRequestState(request, GossipingRequestState.REJECTED) }
-            val sessionId = body.sessionId ?: return Unit
-                    .also { Timber.w("missing sessionId") }
-                    .also { cryptoStore.updateGossipingRequestState(request, GossipingRequestState.REJECTED) }
-
-            if (alg != MXCRYPTO_ALGORITHM_MEGOLM) {
-                return Unit
-                        .also { Timber.w("Only megolm is accepted here") }
-                        .also { cryptoStore.updateGossipingRequestState(request, GossipingRequestState.REJECTED) }
-            }
-
-            val roomEncryptor = roomEncryptorsStore.get(roomId) ?: return Unit
-                    .also { Timber.w("no room Encryptor") }
-                    .also { cryptoStore.updateGossipingRequestState(request, GossipingRequestState.REJECTED) }
-
-            cryptoCoroutineScope.launch(coroutineDispatchers.crypto) {
-                val isSuccess = roomEncryptor.reshareKey(sessionId, userId, deviceId, senderKey)
-
-                if (isSuccess) {
-                    cryptoStore.updateGossipingRequestState(request, GossipingRequestState.ACCEPTED)
-                } else {
-                    cryptoStore.updateGossipingRequestState(request, GossipingRequestState.UNABLE_TO_PROCESS)
-                }
-            }
-            cryptoStore.updateGossipingRequestState(request, GossipingRequestState.RE_REQUESTED)
+            handleKeyRequestFromOtherUser(body, request, alg, roomId, userId, deviceId)
             return
         }
         // TODO: should we queue up requests we don't yet have keys for, in case they turn up later?
@@ -290,6 +265,42 @@ internal class IncomingGossipingRequestManager @Inject constructor(
         onRoomKeyRequest(request)
     }
 
+    private fun handleKeyRequestFromOtherUser(body: RoomKeyRequestBody,
+                                              request: IncomingRoomKeyRequest,
+                                              alg: String,
+                                              roomId: String,
+                                              userId: String,
+                                              deviceId: String) {
+        Timber.w("## CRYPTO | GOSSIP processReceivedGossipingRequests() : room key request from other user")
+        val senderKey = body.senderKey ?: return Unit
+                .also { Timber.w("missing senderKey") }
+                .also { cryptoStore.updateGossipingRequestState(request, GossipingRequestState.REJECTED) }
+        val sessionId = body.sessionId ?: return Unit
+                .also { Timber.w("missing sessionId") }
+                .also { cryptoStore.updateGossipingRequestState(request, GossipingRequestState.REJECTED) }
+
+        if (alg != MXCRYPTO_ALGORITHM_MEGOLM) {
+            return Unit
+                    .also { Timber.w("Only megolm is accepted here") }
+                    .also { cryptoStore.updateGossipingRequestState(request, GossipingRequestState.REJECTED) }
+        }
+
+        val roomEncryptor = roomEncryptorsStore.get(roomId) ?: return Unit
+                .also { Timber.w("no room Encryptor") }
+                .also { cryptoStore.updateGossipingRequestState(request, GossipingRequestState.REJECTED) }
+
+        cryptoCoroutineScope.launch(coroutineDispatchers.crypto) {
+            val isSuccess = roomEncryptor.reshareKey(sessionId, userId, deviceId, senderKey)
+
+            if (isSuccess) {
+                cryptoStore.updateGossipingRequestState(request, GossipingRequestState.ACCEPTED)
+            } else {
+                cryptoStore.updateGossipingRequestState(request, GossipingRequestState.UNABLE_TO_PROCESS)
+            }
+        }
+        cryptoStore.updateGossipingRequestState(request, GossipingRequestState.RE_REQUESTED)
+    }
+
     private fun processIncomingSecretShareRequest(request: IncomingSecretShareRequest) {
         val secretName = request.secretName ?: return Unit.also {
             cryptoStore.updateGossipingRequestState(request, GossipingRequestState.REJECTED)
@@ -324,7 +335,7 @@ internal class IncomingGossipingRequestManager @Inject constructor(
         val isDeviceLocallyVerified = cryptoStore.getUserDevice(userId, deviceId)?.trustLevel?.isLocallyVerified()
 
         when (secretName) {
-            MASTER_KEY_SSSS_NAME       -> cryptoStore.getCrossSigningPrivateKeys()?.master
+            MASTER_KEY_SSSS_NAME -> cryptoStore.getCrossSigningPrivateKeys()?.master
             SELF_SIGNING_KEY_SSSS_NAME -> cryptoStore.getCrossSigningPrivateKeys()?.selfSigned
             USER_SIGNING_KEY_SSSS_NAME -> cryptoStore.getCrossSigningPrivateKeys()?.user
             KEYBACKUP_SECRET_SSSS_NAME -> cryptoStore.getKeyBackupRecoveryKeyInfo()?.recoveryKey

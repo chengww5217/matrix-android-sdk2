@@ -18,11 +18,15 @@ package org.matrix.android.sdk.api.session.room
 
 import androidx.lifecycle.LiveData
 import org.matrix.android.sdk.api.MatrixCallback
+import org.matrix.android.sdk.api.session.events.model.Event
 import org.matrix.android.sdk.api.session.room.members.ChangeMembershipState
+import org.matrix.android.sdk.api.session.room.model.RoomMemberSummary
 import org.matrix.android.sdk.api.session.room.model.RoomSummary
 import org.matrix.android.sdk.api.session.room.model.create.CreateRoomParams
+import org.matrix.android.sdk.api.session.room.peeking.PeekResult
 import org.matrix.android.sdk.api.util.Cancelable
 import org.matrix.android.sdk.api.util.Optional
+import org.matrix.android.sdk.internal.session.room.alias.RoomAliasDescription
 
 /**
  * This interface defines methods to get rooms. It's implemented at the session level.
@@ -119,7 +123,12 @@ interface RoomService {
      */
     fun getRoomIdByAlias(roomAlias: String,
                          searchOnServer: Boolean,
-                         callback: MatrixCallback<Optional<String>>): Cancelable
+                         callback: MatrixCallback<Optional<RoomAliasDescription>>): Cancelable
+
+    /**
+     * Delete a room alias
+     */
+    suspend fun deleteRoomAlias(roomAlias: String)
 
     /**
      * Return a live data of all local changes membership that happened since the session has been opened.
@@ -141,4 +150,32 @@ interface RoomService {
      *  - the power level of the users are not taken into account. Normally in a DM, the 2 members are admins of the room
      */
     fun getExistingDirectRoomWithUser(otherUserId: String): String?
+
+    /**
+     * Get a room member for the tuple {userId,roomId}
+     * @param userId the userId to look for.
+     * @param roomId the roomId to look for.
+     * @return the room member or null
+     */
+    fun getRoomMember(userId: String, roomId: String): RoomMemberSummary?
+
+    /**
+     * Observe a live room member for the tuple {userId,roomId}
+     * @param userId the userId to look for.
+     * @param roomId the roomId to look for.
+     * @return a LiveData of the optional found room member
+     */
+    fun getRoomMemberLive(userId: String, roomId: String): LiveData<Optional<RoomMemberSummary>>
+
+    /**
+     * Get some state events about a room
+     */
+    fun getRoomState(roomId: String, callback: MatrixCallback<List<Event>>)
+
+    /**
+     * Use this if you want to get information from a room that you are not yet in (or invited)
+     * It might be possible to get some information on this room if it is public or if guest access is allowed
+     * This call will try to gather some information on this room, but it could fail and get nothing more
+     */
+    fun peekRoom(roomIdOrAlias: String, callback: MatrixCallback<PeekResult>)
 }
